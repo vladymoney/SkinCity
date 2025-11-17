@@ -1,0 +1,46 @@
+{
+  "name": "skincity-backend",
+  "version": "1.0.0",
+  "description": "Backend server for SkinCity CS2 trading platform",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js",
+    "migrate": "npx prisma migrate dev",
+    "generate": "npx prisma generate",
+    "studio": "npx prisma studio"
+  },
+  "keywords": [
+    "cs2",
+    "steam",
+    "express",
+    "trading",
+    "prisma"
+  ],
+  "author": "SkinCity Dev Team",
+  "license": "MIT",
+  "dependencies": {
+    "@prisma/client": "^6.19.0",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "express-session": "^1.18.2",
+    "get-steam-inventory": "^2.0.0",
+    "globaloffensive": "^3.2.0",
+    "got-scraping": "^4.1.2",
+    "jsonwebtoken": "^9.0.2",
+    "passport": "^0.7.0",
+    "passport-steam": "^1.0.18",
+    "steam-community": "^0.2.2",
+    "steam-inventory": "^1.0.5",
+    "steam-inventory-api-ng": "^1.0.11",
+    "steam-totp": "^2.1.2",
+    "steam-user-inventory": "^4.2.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0",
+    "prisma": "^6.19.0"
+  }
+}
