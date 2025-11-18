@@ -1,14 +1,18 @@
+// backend/src/index.js - YOUR WORKING CODE + THE FIXES
+
 import express from 'express';
 import session from 'express-session';
 import passport from 'passport';
 import cors from 'cors';
 import SteamStrategy from 'passport-steam';
 import { PrismaClient } from '@prisma/client';
-import steaminventory from 'get-steam-inventory';
+import steaminventory from 'get-steam-inventory'; // This line is correct
+
 const app = express();
 const prisma = new PrismaClient();
 const PORT = 8080;
 
+// --- PASSPORT (YOUR WORKING CODE - NO CHANGES) ---
 passport.use(new SteamStrategy({
     returnURL: 'http://localhost:8080/api/auth/steam/return',
     realm: 'http://localhost:8080/',
@@ -31,7 +35,12 @@ passport.deserializeUser(async (id, done) => {
     } catch (error) { done(error, null); }
 });
 
+// --- MIDDLEWARE (YOUR WORKING CODE + 1 FIX) ---
 app.use(cors({ origin: 'http://localhost:3000', credentials: true }));
+
+// *** FIX #1: ADD THIS LINE. It is required for the trade link route to read the data. ***
+app.use(express.json());
+
 app.use(session({
     secret: process.env.SESSION_SECRET,
     resave: false,
@@ -45,7 +54,7 @@ const isAuthenticated = (req, res, next) => {
     res.status(401).json({ message: 'Not authenticated' });
 };
 
-
+// --- AUTH ROUTES (YOUR WORKING CODE - NO CHANGES) ---
 const authRouter = express.Router();
 authRouter.get('/steam', passport.authenticate('steam'));
 authRouter.get('/steam/return', passport.authenticate('steam', { failureRedirect: process.env.FRONTEND_URL }), (req, res) => res.redirect(process.env.FRONTEND_URL));
@@ -61,6 +70,31 @@ authRouter.get('/logout', (req, res, next) => {
 });
 app.use('/api/auth', authRouter);
 
+// *** FIX #2: ADD THIS ENTIRE BLOCK. This is the missing route for saving the trade link. ***
+const userRouter = express.Router();
+userRouter.patch('/trade-url', isAuthenticated, async (req, res) => {
+  const { trade_link } = req.body;
+  const userId = req.user.id;
+
+  if (!trade_link || !trade_link.startsWith('https://steamcommunity.com/tradeoffer/new/')) {
+    return res.status(400).json({ message: 'Invalid Steam Trade URL format.' });
+  }
+
+  try {
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { trade_link: trade_link },
+    });
+    res.json({ message: 'Trade URL saved successfully!', user: updatedUser });
+  } catch (error) {
+    console.error("Error saving trade URL:", error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+});
+app.use('/api/user', userRouter);
+
+
+// --- INVENTORY ROUTES (YOUR WORKING CODE - NO CHANGES) ---
 const inventoryRouter = express.Router();
 inventoryRouter.get('/cs2', isAuthenticated, async (req, res) => {
   try {
@@ -91,6 +125,7 @@ inventoryRouter.get('/cs2', isAuthenticated, async (req, res) => {
 app.use('/api/inventory', inventoryRouter);
 
 
+// --- START SERVER (YOUR WORKING CODE - NO CHANGES) ---
 app.listen(PORT, () => {
   console.log(`✅ Backend server is running and listening on http://localhost:${PORT}`);
 });
