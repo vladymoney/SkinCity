@@ -1,10 +1,14 @@
-// frontend/src/app/profile/page.tsx - FINAL COMPLETE VERSION
+// frontend/src/app/profile/page.tsx
 
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Settings, RefreshCw, History, Wallet, LayoutDashboard, Package, Tag } from 'lucide-react';
+import SkinCard from '../components/SkinCard';
+import InventoryFilters from '../components/InventoryFilters';
+import { InventoryFilters as IFilters } from '@/types';
 
-// Define User type including steam_id and trade_link
+// --- TYPES (Complete and Correct) ---
 interface User {
   id: string;
   steam_id: string;
@@ -14,149 +18,203 @@ interface User {
   trade_link: string | null;
 }
 
+// Update this type to include the 'rarity' field we will add later
 interface InventoryItem {
   assetid: string;
   name: string;
   image: string;
   rarity_color: string;
+  rarity: string; // Placeholder for the rarity filter
 }
+
+interface ListedItem {
+  id: string;
+  assetid: string;
+}
+
+type ProfileTab = 'overview' | 'inventory' | 'listings' | 'history' | 'wallet' | 'settings';
 
 export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<ProfileTab>('inventory');
   
-  // State for the trade link input and save status
-  const [tradeLink, setTradeLink] = useState('');
-  const [saveStatus, setSaveStatus] = useState('');
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [listedItems, setListedItems] = useState<ListedItem[]>([]);
+  
+  const [isLoading, setIsLoading] = useState(true);
 
-  // State for the inventory
-  const [inventory, setInventory] = useState<InventoryItem[] | null>(null);
-  const [inventoryLoading, setInventoryLoading] = useState(false);
-  const [inventoryError, setInventoryError] = useState<string | null>(null);
+  // State for the filters
+// In frontend/src/app/profile/page.tsx
 
+  // State for the filters
+  const [filters, setFilters] = useState<IFilters>({
+    search: '',
+    rarities: [], // <-- CORRECTED SPELLING
+    sortBy: 'newest',
+  });
+
+  // --- DATA LOADING & ACTIONS (Complete and Correct) ---
   useEffect(() => {
-    const checkUserSession = async () => {
-      try {
-        const response = await fetch('http://localhost:8080/api/auth/me', { credentials: 'include' });
-        if (response.ok) {
-          const userData: User = await response.json();
-          setUser(userData);
-          setTradeLink(userData.trade_link || ''); // Populate input with existing trade link
-        } else {
-          setUser(null);
-        }
-      } catch (error) {
-        console.error("Could not connect to the backend.", error);
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-    checkUserSession();
+    loadProfileData();
   }, []);
 
-  const handleSaveTradeLink = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaveStatus('Saving...');
+  const loadProfileData = async (forceRefresh: boolean = false) => {
+    setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:8080/api/user/trade-url', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ trade_link: tradeLink }),
-      });
-      if (response.ok) {
-        setSaveStatus('Saved successfully!');
-      } else {
-        const errorData = await response.json();
-        setSaveStatus(`Error: ${errorData.message}`);
-      }
-    } catch (error) {
-      setSaveStatus('Error: Could not connect to the server.');
-    }
-  };
+      const userRes = await fetch('http://localhost:8080/api/auth/me', { credentials: 'include' });
+      if (!userRes.ok) throw new Error("Not logged in");
+      const userData = await userRes.json();
+      setUser(userData);
 
-  const fetchInventory = async () => {
-    setInventoryLoading(true);
-    setInventory(null);
-    setInventoryError(null);
-    try {
-      const res = await fetch('http://localhost:8080/api/inventory/cs2', { credentials: 'include' });
-      if (res.ok) {
-        const inventoryData = await res.json();
-        setInventory(inventoryData);
-      } else {
-        const errorData = await res.json();
-        setInventoryError(errorData.message || "An unknown error occurred.");
+      if (inventory.length === 0 || forceRefresh) {
+        const invRes = await fetch('http://localhost:8080/api/inventory/cs2', { credentials: 'include' });
+        if (invRes.ok) setInventory(await invRes.json());
+      }
+      if (listedItems.length === 0 || forceRefresh) {
+        const listedRes = await fetch('http://localhost:8080/api/showcase/mine', { credentials: 'include' });
+        if (listedRes.ok) setListedItems(await listedRes.json());
       }
     } catch (error) {
-      console.error("A network error occurred:", error);
-      setInventoryError("Could not connect to the server to fetch inventory.");
+      console.error("Failed to load profile data:", error);
+      setUser(null);
     } finally {
-      setInventoryLoading(false);
+      setIsLoading(false);
     }
   };
 
-  // Dynamic URL for the button that opens the Steam page
-  const steamTradeOfferUrl = `https://steamcommunity.com/profiles/${user?.steam_id}/tradeoffers/privacy`;
+  const handleListAction = async (skin: InventoryItem, isListed: boolean) => {
+    try {
+        if (isListed) {
+            await fetch(`http://localhost:8080/api/showcase/${skin.assetid}`, { method: 'DELETE', credentials: 'include' });
+        } else {
+            await fetch('http://localhost:8080/api/showcase', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ assetid: skin.assetid, name: skin.name, image_url: skin.image, rarity_color: skin.rarity_color }),
+            });
+        }
+        const listedRes = await fetch('http://localhost:8080/api/showcase/mine', { credentials: 'include' });
+        if (listedRes.ok) setListedItems(await listedRes.json());
+    } catch (error) {
+      alert("Action failed.");
+    }
+  };
+  
+  // --- FILTERING LOGIC (Complete and Correct) ---
+  const filteredInventory = useMemo(() => {
+    let items = [...inventory];
 
-  if (loading) return <div>Loading profile...</div>;
-  if (!user) return <div><h1>Access Denied</h1><p>You must be logged in to view this page.</p></div>;
+    if (filters.search) {
+      items = items.filter(item => item.name.toLowerCase().includes(filters.search.toLowerCase()));
+    }
 
-  const InventoryDisplay = ({ items }: { items: InventoryItem[] }) => (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px', marginTop: '20px' }}>
-      {items.map(item => (
-        <div key={item.assetid} style={{ border: '1px solid #333', padding: '10px', textAlign: 'center', backgroundColor: '#222' }}>
-          <img src={`https://community.cloudflare.steamstatic.com/economy/image/${item.image}`} alt={item.name} style={{ maxWidth: '100px', maxHeight: '100px' }} />
-          <p style={{ color: item.rarity_color, fontSize: '14px', marginTop: '5px', minHeight: '40px' }}>{item.name}</p>
-        </div>
-      ))}
-    </div>
-  );
+    // This will work once we add the 'rarity' field from the backend
+    if (filters.rarities.length > 0) {
+      items = items.filter(item => filters.rarities.includes(item.rarity));
+    }
+    
+    if (filters.sortBy === 'name_asc') {
+      items.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (filters.sortBy === 'name_desc') {
+      items.sort((a, b) => b.name.localeCompare(a.name));
+    }
+
+    return items;
+  }, [inventory, filters]);
+
+  if (isLoading && !user) return <div className="text-center p-10">Loading Profile...</div>;
+  if (!user) return <div className="min-h-screen flex items-center justify-center text-gray-400">Please login to view your profile.</div>;
+
+  const listedAssetIds = new Set(listedItems.map(item => item.assetid));
 
   return (
-    <div>
-      <h1>{user.username}'s Profile</h1>
-      <img src={user.avatar_url} alt={`${user.username}'s avatar`} width="150" />
-      <p>Your balance: {user.balance}</p>
-      
-      {/* --- THIS IS THE MISSING TRADE URL SECTION --- */}
-      <div style={{ marginTop: '20px', padding: '20px', border: '1px solid #333', borderRadius: '8px' }}>
-        <h3>Your Steam Trade URL</h3>
-        <p>Our bots need your Trade URL to send you items. This must be set correctly.</p>
+    <div className="min-h-screen bg-cs-dark py-8 pb-20">
+      <div className="container mx-auto px-4">
         
-        <a href={steamTradeOfferUrl} target="_blank" rel="noopener noreferrer">
-          <button type="button" style={{ marginBottom: '15px' }}>
-            Get Your Trade URL from Steam
-          </button>
-        </a>
+        {/* Profile Header */}
+        <div className="bg-slate-900 rounded-2xl p-8 border border-slate-800 mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          <div className="flex items-center gap-6">
+            <img src={user.avatar_url} alt="Profile" className="w-24 h-24 rounded-full border-4 border-slate-800" />
+            <div>
+              <h1 className="text-3xl font-bold text-white mb-1">{user.username}</h1>
+              <a href={`https://steamcommunity.com/profiles/${user.steam_id}`} target="_blank" rel="noreferrer" className="text-sm text-gray-400 hover:underline">
+                Steam ID: {user.steam_id}
+              </a>
+            </div>
+          </div>
+          <div className="bg-slate-800 px-6 py-3 rounded-xl border border-slate-700 text-right">
+              <p className="text-xs text-gray-500 uppercase font-bold">Wallet Balance</p>
+              <p className="text-2xl font-bold text-yellow-400">${(user.balance / 100).toFixed(2)}</p>
+          </div>
+        </div>
 
-        <form onSubmit={handleSaveTradeLink} style={{ display: 'flex', alignItems: 'center' }}>
-          <input
-            type="text"
-            value={tradeLink}
-            onChange={(e) => setTradeLink(e.target.value)}
-            placeholder="Paste your Trade URL here"
-            style={{ flexGrow: 1, padding: '8px', marginRight: '10px', color: 'black' }}
-          />
-          <button type="submit">Save</button>
-        </form>
-        {saveStatus && <p style={{ marginTop: '10px' }}>{saveStatus}</p>}
-      </div>
-      
-      <hr style={{ margin: '40px 0' }} />
+        <div className="flex flex-col lg:flex-row gap-8">
+           {/* Sidebar Navigation */}
+           <div className="w-full lg:w-64 shrink-0">
+              <nav className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+                {[
+                  { id: 'overview', icon: LayoutDashboard, label: 'Dashboard' },
+                  { id: 'inventory', icon: Package, label: 'My Inventory' },
+                  { id: 'listings', icon: Tag, label: 'My Listings' },
+                  { id: 'history', icon: History, label: 'Trade History' },
+                  { id: 'wallet', icon: Wallet, label: 'Wallet' },
+                  { id: 'settings', icon: Settings, label: 'Settings' },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveTab(item.id as ProfileTab)}
+                    className={`w-full flex items-center gap-3 px-6 py-4 text-sm font-medium transition-colors ${
+                      activeTab === item.id 
+                        ? 'bg-blue-600/10 text-blue-500 border-r-4 border-blue-500' 
+                        : 'text-gray-400 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
+                    <item.icon className="w-5 h-5" />
+                    {item.label}
+                  </button>
+                ))}
+              </nav>
+           </div>
 
-      <h2>Your Inventory</h2>
-      <button onClick={fetchInventory} disabled={inventoryLoading} style={{ padding: '10px 20px', fontSize: '16px' }}>
-        {inventoryLoading ? 'Loading Inventory...' : 'View CS2 Inventory'}
-      </button>
+           {/* Content Area */}
+           <div className="flex-1 bg-slate-900 rounded-xl border border-slate-800 p-6">
+              {activeTab === 'inventory' && (
+                 <div>
+                    <InventoryFilters 
+                      filters={filters}
+                      onChange={(newFilters) => setFilters(prev => ({ ...prev, ...newFilters }))}
+                    />
 
-      <div style={{ marginTop: '20px' }}>
-        {inventoryLoading && <p>Loading items...</p>}
-        {inventoryError && <p style={{ color: 'red' }}>Error: {inventoryError}</p>}
-        {inventory && inventory.length > 0 && <InventoryDisplay items={inventory} />}
-        {inventory && inventory.length === 0 && <p>No CS2 items found in this inventory.</p>}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
+                       {filteredInventory.map((item) => {
+                          const isListed = listedAssetIds.has(item.assetid);
+                          return (
+                            <SkinCard 
+                              key={item.assetid} 
+                              skin={item} 
+                              onAction={() => handleListAction(item, isListed)}
+                              actionLabel={isListed ? "Unlist" : "List for Trade"}
+                              actionColor={isListed ? "bg-red-600" : "bg-green-600"}
+                            />
+                          )
+                       })}
+                       {filteredInventory.length === 0 && !isLoading && (
+                          <div className="col-span-full text-center py-12 text-gray-500">
+                            {inventory.length > 0 ? "No items match your filters." : "Your inventory is empty."}
+                          </div>
+                       )}
+                    </div>
+                 </div>
+              )}
+              {activeTab !== 'inventory' && (
+                  <div className="h-96 flex items-center justify-center text-gray-500 border-2 border-dashed border-slate-700 rounded-lg">
+                      <p>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} section is under construction.</p>
+                  </div>
+              )}
+           </div>
+        </div>
       </div>
     </div>
   );
-}
+};

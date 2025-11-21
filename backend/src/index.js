@@ -1,4 +1,3 @@
-// backend/src/index.js - YOUR WORKING CODE + THE FIXES
 
 import express from 'express';
 import session from 'express-session';
@@ -6,13 +5,12 @@ import passport from 'passport';
 import cors from 'cors';
 import SteamStrategy from 'passport-steam';
 import { PrismaClient } from '@prisma/client';
-import steaminventory from 'get-steam-inventory'; // This line is correct
+import steaminventory from 'get-steam-inventory'; 
 
 const app = express();
 const prisma = new PrismaClient();
 const PORT = 8080;
 
-// --- PASSPORT (YOUR WORKING CODE - NO CHANGES) ---
 passport.use(new SteamStrategy({
     returnURL: 'http://localhost:8080/api/auth/steam/return',
     realm: 'http://localhost:8080/',
@@ -35,10 +33,8 @@ passport.deserializeUser(async (id, done) => {
     } catch (error) { done(error, null); }
 });
 
-// --- MIDDLEWARE (YOUR WORKING CODE + 1 FIX) ---
 app.use(cors({ origin: 'http://localhost:3000', credentials: true }));
 
-// *** FIX #1: ADD THIS LINE. It is required for the trade link route to read the data. ***
 app.use(express.json());
 
 app.use(session({
@@ -54,7 +50,6 @@ const isAuthenticated = (req, res, next) => {
     res.status(401).json({ message: 'Not authenticated' });
 };
 
-// --- AUTH ROUTES (YOUR WORKING CODE - NO CHANGES) ---
 const authRouter = express.Router();
 authRouter.get('/steam', passport.authenticate('steam'));
 authRouter.get('/steam/return', passport.authenticate('steam', { failureRedirect: process.env.FRONTEND_URL }), (req, res) => res.redirect(process.env.FRONTEND_URL));
@@ -70,7 +65,6 @@ authRouter.get('/logout', (req, res, next) => {
 });
 app.use('/api/auth', authRouter);
 
-// *** FIX #2: ADD THIS ENTIRE BLOCK. This is the missing route for saving the trade link. ***
 const userRouter = express.Router();
 userRouter.patch('/trade-url', isAuthenticated, async (req, res) => {
   const { trade_link } = req.body;
@@ -93,8 +87,75 @@ userRouter.patch('/trade-url', isAuthenticated, async (req, res) => {
 });
 app.use('/api/user', userRouter);
 
+const showcaseRouter = express.Router();
 
-// --- INVENTORY ROUTES (YOUR WORKING CODE - NO CHANGES) ---
+showcaseRouter.post('/', isAuthenticated, async (req, res) => {
+  const { assetid, name, image_url, rarity_color } = req.body;
+  const ownerId = req.user.id;
+
+  if (!assetid || !name || !image_url || !rarity_color) {
+    return res.status(400).json({ message: 'Missing item data.' });
+  }
+
+  try {
+    const existingListing = await prisma.listedItem.findUnique({
+      where: { assetid: assetid },
+    });
+
+    if (existingListing) {
+      return res.status(409).json({ message: 'This item is already listed.' });
+    }
+
+    const newListedItem = await prisma.listedItem.create({
+      data: {
+        assetid: assetid,
+        name: name,
+        image_url: image_url,
+        rarity_color: rarity_color,
+        ownerId: ownerId,
+      },
+    });
+
+    res.status(201).json(newListedItem);
+  } catch (error) {
+    console.error("Error listing item:", error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+});
+
+showcaseRouter.delete('/:assetid', isAuthenticated, async (req, res) => {
+  console.log("--- Received from Frontend ---");
+  console.log("Request Body:", req.body);
+  const { assetid } = req.params;
+  const ownerId = req.user.id;
+
+  try {
+    const listedItem = await prisma.listedItem.findUnique({
+      where: { assetid: assetid },
+    });
+
+    if (!listedItem) {
+      return res.status(404).json({ message: 'Item not found in showcase.' });
+    }
+
+    if (listedItem.ownerId !== ownerId) {
+      return res.status(403).json({ message: 'You are not authorized to remove this item.' });
+    }
+
+    await prisma.listedItem.delete({
+      where: { assetid: assetid },
+    });
+
+    res.status(204).send(); 
+  } catch (error) {
+    console.error("Error unlisting item:", error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+});
+
+app.use('/api/showcase', showcaseRouter);
+
+
 const inventoryRouter = express.Router();
 inventoryRouter.get('/cs2', isAuthenticated, async (req, res) => {
   try {
@@ -108,8 +169,12 @@ inventoryRouter.get('/cs2', isAuthenticated, async (req, res) => {
       return res.json([]);
     }
 
+    
+
     const formattedInventory = inventory.items.map(item => ({
-      assetid: item.assetid,
+      // THE FIX: Let's assume the library documentation is wrong
+      // and the unique ID is simply called 'id'. This is common.
+      assetid: item.id || item.assetid, // Use 'id' OR 'assetid', whichever exists
       name: item.market_hash_name,
       image: item.icon_url_large || item.icon_url,
       rarity_color: `#${item.name_color}`,
@@ -125,7 +190,6 @@ inventoryRouter.get('/cs2', isAuthenticated, async (req, res) => {
 app.use('/api/inventory', inventoryRouter);
 
 
-// --- START SERVER (YOUR WORKING CODE - NO CHANGES) ---
 app.listen(PORT, () => {
   console.log(`✅ Backend server is running and listening on http://localhost:${PORT}`);
 });

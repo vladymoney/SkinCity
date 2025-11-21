@@ -1,3 +1,6 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -15,4 +18,25 @@ model User {
   trade_link  String?
   balance     Int      @default(0)
   created_at  DateTime @default(now())
+
+  // --- THIS IS THE NEW RELATION ---
+  // This tells Prisma that a User can have many ListedItems.
+  listedItems ListedItem[]
+}
+
+// --- THIS IS THE NEW MODEL ---
+model ListedItem {
+  id          String   @id @default(cuid())
+  assetid     String   @unique // The unique ID of the item from Steam
+  
+  // These fields are duplicated for easy access when displaying listings
+  name        String
+  image_url   String
+  rarity_color String
+
+  created_at  DateTime @default(now())
+
+  // --- This sets up the relationship to the User model ---
+  owner       User     @relation(fields: [ownerId], references: [id])
+  ownerId     String
 }
