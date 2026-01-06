@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import SkinCard from '../components/SkinCard.tsx';
+import SkinCard from '../components/SkinCard';
 
 interface ListedItemWithOwner {
   id: string;

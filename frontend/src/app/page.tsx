@@ -124,7 +124,7 @@ export default function HomePage() {
                     rarity_color: listing.rarity_color
                 }} 
                 actionLabel="Make Offer"
-                onAction={() => { /* We'll implement this later */ }}
+                onAction={() => {  }}
               />
             ))}
           </div>

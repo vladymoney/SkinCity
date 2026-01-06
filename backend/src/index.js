@@ -184,10 +184,63 @@ inventoryRouter.get('/cs2', isAuthenticated, async (req, res) => {
 
   } catch (err) {
     console.error("[get-steam-inventory] Error:", err.message);
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ message: err.message });         
   }
 });
 app.use('/api/inventory', inventoryRouter);
+
+
+// --- NEW: Inspect Router for fetching float and 3D data ---
+const inspectRouter = express.Router();
+
+inspectRouter.get('/:assetid', isAuthenticated, async (req, res) => {
+  const { assetid } = req.params;
+  const ownerId = req.user.id;
+
+  try {
+    // First, find the item in our database to get its details
+    // We need to expand our database model to store the 'inspect link'
+    // For now, let's assume we can build it.
+    
+    // To get float data, we need the "inspect link" of the item.
+    // The basic inventory API from 'get-steam-inventory' provides this!
+    const inventory = await steaminventory.getinventory(730, req.user.steam_id, '2');
+    const item = inventory.items.find(i => (i.id || i.assetid) === assetid);
+
+    if (!item || !item.actions || !item.actions[0].link) {
+        return res.status(404).json({ message: "Inspect link for this item not found." });
+    }
+
+    // The inspect link is in the format: steam://...
+    // We need to extract the parameters from it for the Float API.
+    const inspectLink = item.actions[0].link
+        .replace('%owner_steamid%', req.user.steam_id)
+        .replace('%assetid%', assetid);
+
+    // Now, call the CSGOFloat API
+    const floatApiUrl = `https://api.csgofloat.com/?url=${inspectLink}`;
+    const floatResponse = await axios.get(floatApiUrl);
+    
+    // The response contains all the details we need
+    const itemInfo = floatResponse.data.iteminfo;
+
+    // We can now send this detailed info to our frontend
+    res.json({
+        floatvalue: itemInfo.floatvalue,
+        paintseed: itemInfo.paintseed,
+        stickers: itemInfo.stickers,
+        defindex: itemInfo.defindex,
+        paintindex: itemInfo.paintindex,
+        // ... and any other data we want to display
+    });
+
+  } catch (error) {
+    console.error("Error fetching float data:", error.message);
+    res.status(500).json({ message: 'Failed to fetch item details from Float API.' });
+  }
+});
+
+app.use('/api/inspect', inspectRouter);
 
 
 app.listen(PORT, () => {

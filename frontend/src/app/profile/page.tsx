@@ -1,4 +1,4 @@
-// frontend/src/app/profile/page.tsx
+// frontend/src/app/profile/page.tsx - FINAL COMPLETE VERSION
 
 "use client";
 
@@ -6,9 +6,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Settings, RefreshCw, History, Wallet, LayoutDashboard, Package, Tag } from 'lucide-react';
 import SkinCard from '../components/SkinCard';
 import InventoryFilters from '../components/InventoryFilters';
+import InspectModal from '../components/InspectModal'; // Import the new InspectModal
 import { InventoryFilters as IFilters } from '@/types';
 
-// --- TYPES (Complete and Correct) ---
+// --- TYPES ---
 interface User {
   id: string;
   steam_id: string;
@@ -18,13 +19,15 @@ interface User {
   trade_link: string | null;
 }
 
-// Update this type to include the 'rarity' field we will add later
 interface InventoryItem {
   assetid: string;
   name: string;
   image: string;
   rarity_color: string;
-  rarity: string; // Placeholder for the rarity filter
+  rarity: string;
+  // ADD THESE TWO LINES:
+  inspect_link?: string; 
+  actions?: { link: string; name: string }[]; 
 }
 
 interface ListedItem {
@@ -37,35 +40,28 @@ type ProfileTab = 'overview' | 'inventory' | 'listings' | 'history' | 'wallet' |
 export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState<ProfileTab>('inventory');
-  
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [listedItems, setListedItems] = useState<ListedItem[]>([]);
-  
   const [isLoading, setIsLoading] = useState(true);
 
-  // State for the filters
-// In frontend/src/app/profile/page.tsx
-
-  // State for the filters
   const [filters, setFilters] = useState<IFilters>({
     search: '',
-    rarities: [], // <-- CORRECTED SPELLING
+    rarities: [],
     sortBy: 'newest',
   });
 
-  // --- DATA LOADING & ACTIONS (Complete and Correct) ---
-  useEffect(() => {
-    loadProfileData();
-  }, []);
+  // State to manage the inspect modal
+  const [inspectingItem, setInspectingItem] = useState<InventoryItem | null>(null);
+
+  // --- DATA LOADING & ACTIONS ---
+  useEffect(() => { loadProfileData(); }, []);
 
   const loadProfileData = async (forceRefresh: boolean = false) => {
     setIsLoading(true);
     try {
       const userRes = await fetch('http://localhost:8080/api/auth/me', { credentials: 'include' });
       if (!userRes.ok) throw new Error("Not logged in");
-      const userData = await userRes.json();
-      setUser(userData);
-
+      setUser(await userRes.json());
       if (inventory.length === 0 || forceRefresh) {
         const invRes = await fetch('http://localhost:8080/api/inventory/cs2', { credentials: 'include' });
         if (invRes.ok) setInventory(await invRes.json());
@@ -75,7 +71,6 @@ export default function ProfilePage() {
         if (listedRes.ok) setListedItems(await listedRes.json());
       }
     } catch (error) {
-      console.error("Failed to load profile data:", error);
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -101,28 +96,17 @@ export default function ProfilePage() {
     }
   };
   
-  // --- FILTERING LOGIC (Complete and Correct) ---
+  // --- FILTERING LOGIC ---
   const filteredInventory = useMemo(() => {
     let items = [...inventory];
-
-    if (filters.search) {
-      items = items.filter(item => item.name.toLowerCase().includes(filters.search.toLowerCase()));
-    }
-
-    // This will work once we add the 'rarity' field from the backend
-    if (filters.rarities.length > 0) {
-      items = items.filter(item => filters.rarities.includes(item.rarity));
-    }
-    
-    if (filters.sortBy === 'name_asc') {
-      items.sort((a, b) => a.name.localeCompare(b.name));
-    } else if (filters.sortBy === 'name_desc') {
-      items.sort((a, b) => b.name.localeCompare(a.name));
-    }
-
+    if (filters.search) items = items.filter(item => item.name.toLowerCase().includes(filters.search.toLowerCase()));
+    if (filters.rarities.length > 0) items = items.filter(item => item.rarity && filters.rarities.includes(item.rarity));
+    if (filters.sortBy === 'name_asc') items.sort((a, b) => a.name.localeCompare(b.name));
+    else if (filters.sortBy === 'name_desc') items.sort((a, b) => b.name.localeCompare(a.name));
     return items;
   }, [inventory, filters]);
 
+  // --- RENDER LOGIC ---
   if (isLoading && !user) return <div className="text-center p-10">Loading Profile...</div>;
   if (!user) return <div className="min-h-screen flex items-center justify-center text-gray-400">Please login to view your profile.</div>;
 
@@ -130,6 +114,15 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-cs-dark py-8 pb-20">
+      
+      {/* Conditionally render the InspectModal */}
+      {inspectingItem && (
+        <InspectModal 
+          item={inspectingItem}
+          onClose={() => setInspectingItem(null)}
+        />
+      )}
+
       <div className="container mx-auto px-4">
         
         {/* Profile Header */}
@@ -161,15 +154,7 @@ export default function ProfilePage() {
                   { id: 'wallet', icon: Wallet, label: 'Wallet' },
                   { id: 'settings', icon: Settings, label: 'Settings' },
                 ].map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => setActiveTab(item.id as ProfileTab)}
-                    className={`w-full flex items-center gap-3 px-6 py-4 text-sm font-medium transition-colors ${
-                      activeTab === item.id 
-                        ? 'bg-blue-600/10 text-blue-500 border-r-4 border-blue-500' 
-                        : 'text-gray-400 hover:bg-slate-800 hover:text-white'
-                    }`}
-                  >
+                  <button key={item.id} onClick={() => setActiveTab(item.id as ProfileTab)} className={`w-full flex items-center gap-3 px-6 py-4 text-sm font-medium transition-colors ${activeTab === item.id ? 'bg-blue-600/10 text-blue-500 border-r-4 border-blue-500' : 'text-gray-400 hover:bg-slate-800 hover:text-white'}`}>
                     <item.icon className="w-5 h-5" />
                     {item.label}
                   </button>
@@ -181,22 +166,21 @@ export default function ProfilePage() {
            <div className="flex-1 bg-slate-900 rounded-xl border border-slate-800 p-6">
               {activeTab === 'inventory' && (
                  <div>
-                    <InventoryFilters 
-                      filters={filters}
-                      onChange={(newFilters) => setFilters(prev => ({ ...prev, ...newFilters }))}
-                    />
-
+                    <InventoryFilters filters={filters} onChange={(newFilters) => setFilters(prev => ({ ...prev, ...newFilters }))} />
                     <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
                        {filteredInventory.map((item) => {
                           const isListed = listedAssetIds.has(item.assetid);
                           return (
-                            <SkinCard 
-                              key={item.assetid} 
-                              skin={item} 
-                              onAction={() => handleListAction(item, isListed)}
-                              actionLabel={isListed ? "Unlist" : "List for Trade"}
-                              actionColor={isListed ? "bg-red-600" : "bg-green-600"}
-                            />
+                            <div key={item.assetid}>
+                              <button onClick={() => setInspectingItem(item)} className="w-full text-left mb-2 transition-transform hover:-translate-y-1">
+                                <SkinCard skin={item} onAction={() => {}} actionLabel="" />
+                              </button>
+                              {isListed ? (
+                                <button onClick={() => handleListAction(item, true)} className="w-full text-xs font-bold py-1 bg-red-600 rounded">Unlist</button>
+                              ) : (
+                                <button onClick={() => handleListAction(item, false)} className="w-full text-xs font-bold py-1 bg-green-600 rounded">List for Trade</button>
+                              )}
+                            </div>
                           )
                        })}
                        {filteredInventory.length === 0 && !isLoading && (
