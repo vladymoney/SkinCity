@@ -52,6 +52,10 @@ export default function ProfilePage() {
   });
 
   const [inspectingItem, setInspectingItem] = useState<InventoryItem | null>(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 24; // 24 items per page (6x4 grid)
 
   // --- DATA LOADING ---
   useEffect(() => { loadProfileData(); }, []);
@@ -194,6 +198,47 @@ export default function ProfilePage() {
     return items;
   }, [inventory, filters]);
 
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredInventory.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedInventory = filteredInventory.slice(startIndex, endIndex);
+
+  // Generate page numbers for pagination
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    const maxVisible = 7;
+    
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      pages.push(1);
+      
+      if (currentPage > 3) {
+        pages.push('...');
+      }
+      
+      for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+        pages.push(i);
+      }
+      
+      if (currentPage < totalPages - 2) {
+        pages.push('...');
+      }
+      
+      pages.push(totalPages);
+    }
+    
+    return pages;
+  };
+
   // --- RENDER ---
   if (isLoading && !user) return <div className="text-center p-10 text-white">Loading Profile...</div>;
   if (!user) return <div className="min-h-screen flex items-center justify-center text-gray-400">Please login to view your profile.</div>;
@@ -279,75 +324,149 @@ export default function ProfilePage() {
                         Loading inventory...
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
-                         {filteredInventory.map((item) => {
-                            const isListed = listedAssetIds.has(item.assetid);
-                            return (
-                              <div key={item.assetid} className="group">
-                                {/* Card - Click to inspect */}
-                                <div 
-                                  onClick={() => setInspectingItem(item)} 
-                                  className="w-full text-left mb-2 transition-transform hover:-translate-y-1 cursor-pointer"
-                                >
-                                  {/* FIXED: Directly render image instead of using SkinCard */}
-                                  <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden hover:border-blue-500 transition h-full flex flex-col">
-                                    {/* Image */}
-                                    <div className="aspect-square bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-4">
-                                      <img 
-                                        src={item.image} 
-                                        alt={item.name}
-                                        className="w-full h-full object-contain"
-                                        onError={(e) => {
-                                          // Fallback to placeholder if image fails
-                                          e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Crect fill='%23334155' width='200' height='200'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' fill='%23475569' dy='.3em' font-family='Arial' font-size='14'%3ENo Image%3C/text%3E%3C/svg%3E";
-                                        }}
-                                      />
-                                    </div>
-                                    
-                                    {/* Info - Fixed height */}
-                                    <div className="p-3 flex-1 flex flex-col">
-                                      <div 
-                                        className="text-sm font-semibold mb-1 truncate"
-                                        style={{ color: item.rarity_color || '#fff' }}
-                                      >
-                                        {item.name}
+                      <>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
+                           {paginatedInventory.map((item) => {
+                              const isListed = listedAssetIds.has(item.assetid);
+                              return (
+                                <div key={item.assetid} className="group">
+                                  {/* Card - Click to inspect */}
+                                  <div 
+                                    onClick={() => setInspectingItem(item)} 
+                                    className="w-full text-left mb-2 transition-transform hover:-translate-y-1 cursor-pointer"
+                                  >
+                                    {/* FIXED: Directly render image instead of using SkinCard */}
+                                    <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden hover:border-blue-500 transition h-full flex flex-col">
+                                      {/* Image */}
+                                      <div className="aspect-square bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-4">
+                                        <img 
+                                          src={item.image} 
+                                          alt={item.name}
+                                          className="w-full h-full object-contain"
+                                          onError={(e) => {
+                                            // Fallback to placeholder if image fails
+                                            e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Crect fill='%23334155' width='200' height='200'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' fill='%23475569' dy='.3em' font-family='Arial' font-size='14'%3ENo Image%3C/text%3E%3C/svg%3E";
+                                          }}
+                                        />
                                       </div>
                                       
-                                      {/* Float badge if available - fixed height container */}
-                                      <div className="h-5 mb-1">
-                                        {item.float?.floatvalue && (
-                                          <div className="text-xs text-yellow-400 font-mono">
-                                            Float: {item.float.floatvalue.toFixed(4)}
-                                          </div>
-                                        )}
-                                      </div>
-                                      
-                                      {/* Price */}
-                                      <div className="text-green-400 font-bold text-sm mt-auto">
-                                        {item.pricereal ? `$${item.pricereal}` : 
-                                         item.pricelatest ? `$${item.pricelatest}` : 
-                                         'N/A'}
+                                      {/* Info - Fixed height */}
+                                      <div className="p-3 flex-1 flex flex-col">
+                                        <div 
+                                          className="text-sm font-semibold mb-1 truncate"
+                                          style={{ color: item.rarity_color || '#fff' }}
+                                        >
+                                          {item.name}
+                                        </div>
+                                        
+                                        {/* Float badge if available - fixed height container */}
+                                        <div className="h-5 mb-1">
+                                          {item.float?.floatvalue && (
+                                            <div className="text-xs text-yellow-400 font-mono">
+                                              Float: {item.float.floatvalue.toFixed(4)}
+                                            </div>
+                                          )}
+                                        </div>
+                                        
+                                        {/* Price */}
+                                        <div className="text-green-400 font-bold text-sm mt-auto">
+                                          {item.pricereal ? `$${item.pricereal}` : 
+                                           item.pricelatest ? `$${item.pricelatest}` : 
+                                           'N/A'}
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
+                                  
+                                  {/* List/Unlist Button */}
+                                  {isListed ? (
+                                    <button onClick={() => handleListAction(item, true)} className="w-full text-xs font-bold py-2 bg-red-600/80 hover:bg-red-600 text-white rounded transition">Unlist</button>
+                                  ) : (
+                                    <button onClick={() => handleListAction(item, false)} className="w-full text-xs font-bold py-2 bg-green-600/80 hover:bg-green-600 text-white rounded transition">List for Trade</button>
+                                  )}
                                 </div>
-                                
-                                {/* List/Unlist Button */}
-                                {isListed ? (
-                                  <button onClick={() => handleListAction(item, true)} className="w-full text-xs font-bold py-2 bg-red-600/80 hover:bg-red-600 text-white rounded transition">Unlist</button>
-                                ) : (
-                                  <button onClick={() => handleListAction(item, false)} className="w-full text-xs font-bold py-2 bg-green-600/80 hover:bg-green-600 text-white rounded transition">List for Trade</button>
-                                )}
+                              )
+                           })}
+                           
+                           {paginatedInventory.length === 0 && (
+                              <div className="col-span-full text-center py-12 text-gray-500">
+                                {inventory.length > 0 ? "No items match your filters." : "Your inventory is empty."}
                               </div>
-                            )
-                         })}
-                         
-                         {filteredInventory.length === 0 && !isLoading && (
-                            <div className="col-span-full text-center py-12 text-gray-500">
-                              {inventory.length > 0 ? "No items match your filters." : "Your inventory is empty."}
+                           )}
+                        </div>
+
+                        {/* Pagination Controls */}
+                        {totalPages > 1 && (
+                          <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-800 pt-6">
+                            {/* Page Info */}
+                            <div className="text-sm text-slate-400">
+                              Showing {startIndex + 1}-{Math.min(endIndex, filteredInventory.length)} of {filteredInventory.length} items
                             </div>
-                         )}
-                      </div>
+
+                            {/* Page Numbers */}
+                            <div className="flex items-center gap-2">
+                              {/* Previous Button */}
+                              <button
+                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                disabled={currentPage === 1}
+                                className={`px-3 py-2 rounded-lg font-medium transition ${
+                                  currentPage === 1
+                                    ? 'bg-slate-800 text-slate-600 cursor-not-allowed'
+                                    : 'bg-slate-800 text-white hover:bg-slate-700'
+                                }`}
+                              >
+                                Previous
+                              </button>
+
+                              {/* Page Numbers */}
+                              <div className="hidden sm:flex items-center gap-1">
+                                {getPageNumbers().map((page, index) => (
+                                  page === '...' ? (
+                                    <span key={`ellipsis-${index}`} className="px-3 py-2 text-slate-600">
+                                      ...
+                                    </span>
+                                  ) : (
+                                    <button
+                                      key={page}
+                                      onClick={() => setCurrentPage(page as number)}
+                                      className={`px-3 py-2 rounded-lg font-medium transition ${
+                                        currentPage === page
+                                          ? 'bg-blue-600 text-white'
+                                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
+                                      }`}
+                                    >
+                                      {page}
+                                    </button>
+                                  )
+                                ))}
+                              </div>
+
+                              {/* Mobile: Current Page Display */}
+                              <div className="sm:hidden px-4 py-2 bg-slate-800 rounded-lg text-sm text-white">
+                                Page {currentPage} / {totalPages}
+                              </div>
+
+                              {/* Next Button */}
+                              <button
+                                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                disabled={currentPage === totalPages}
+                                className={`px-3 py-2 rounded-lg font-medium transition ${
+                                  currentPage === totalPages
+                                    ? 'bg-slate-800 text-slate-600 cursor-not-allowed'
+                                    : 'bg-slate-800 text-white hover:bg-slate-700'
+                                }`}
+                              >
+                                Next
+                              </button>
+                            </div>
+
+                            {/* Items Per Page (Optional) */}
+                            <div className="hidden lg:block text-sm text-slate-400">
+                              {itemsPerPage} per page
+                            </div>
+                          </div>
+                        )}
+                      </>
                     )}
                  </div>
               )}
