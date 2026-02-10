@@ -49,6 +49,7 @@ export default function ProfilePage() {
     rarities: [],
     sortBy: 'newest',
     priceRange: [0, 1000],
+    floatRange: [0, 1], // 0.00 to 1.00
   });
 
   const [inspectingItem, setInspectingItem] = useState<InventoryItem | null>(null);
@@ -181,6 +182,15 @@ export default function ProfilePage() {
       items = items.filter(item => {
         const price = item.pricereal || item.pricelatest || 0;
         return price >= filters.priceRange[0] && price <= filters.priceRange[1];
+      });
+    }
+    
+    // Float range filter
+    if (filters.floatRange && filters.floatRange[0] > 0 || filters.floatRange[1] < 1) {
+      items = items.filter(item => {
+        if (!item.float?.floatvalue) return false; // Skip items without float
+        const floatValue = item.float.floatvalue;
+        return floatValue >= filters.floatRange[0] && floatValue <= filters.floatRange[1];
       });
     }
     

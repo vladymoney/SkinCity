@@ -1,17 +1,18 @@
-import React from 'react';
-import { Search, ChevronDown, DollarSign } from 'lucide-react';
+import React, { useState } from 'react';
+import { Search, ChevronDown } from 'lucide-react';
 
 interface InventoryFiltersProps {
   filters: {
     search: string;
-    types: string[];      // Weapon types (AK-47, AWP, etc.)
-    rarities: string[];   // Rarity grades (Consumer, Mil-Spec, etc.)
+    types: string[];
+    rarities: string[];
     sortBy: string;
     priceRange: [number, number];
+    floatRange: [number, number];
   };
   onChange: (filters: Partial<InventoryFiltersProps['filters']>) => void;
-  availableTypes?: string[];     // Weapon types from inventory
-  availableRarities?: string[];  // Rarity grades from inventory
+  availableTypes?: string[];
+  availableRarities?: string[];
   maxPrice?: number;
 }
 
@@ -26,22 +27,11 @@ const TYPE_COLORS: Record<string, string> = {
   'usp-s': '#4b69ff',
   'p2000': '#4b69ff',
   'p250': '#5e98d9',
-  'dual berettas': '#b0c3d9',
-  'ssg 08': '#8847ff',
-  'sawed-off': '#5e98d9',
-  'g3sg1': '#8847ff',
-  'scar-20': '#8847ff',
-  'mac-10': '#5e98d9',
-  'pp-bizon': '#b0c3d9',
-  'aug': '#8847ff',
-  'r8 revolver': '#d32ce6',
   'case': '#ffd700',
-  'sealed graffiti': '#b0c3d9',
 };
 
-// Rarity grade colors (based on CS:GO color codes)
+// Rarity colors
 const RARITY_COLORS: Record<string, { name: string; color: string }> = {
-  // CS:GO Standard Rarities
   'b0c3d9': { name: 'Consumer Grade', color: '#b0c3d9' },
   '5e98d9': { name: 'Industrial Grade', color: '#5e98d9' },
   '4b69ff': { name: 'Mil-Spec', color: '#4b69ff' },
@@ -49,49 +39,17 @@ const RARITY_COLORS: Record<string, { name: string; color: string }> = {
   'd32ce6': { name: 'Classified', color: '#d32ce6' },
   'eb4b4b': { name: 'Covert', color: '#eb4b4b' },
   'e4ae39': { name: 'Contraband', color: '#e4ae39' },
-  'ffd700': { name: 'Extraordinary', color: '#ffd700' },
-  
-  // Additional color variations
-  'cf6a32': { name: 'Extraordinary', color: '#cf6a32' },  // Orange-gold
-  'd2d2d2': { name: 'Base Grade', color: '#d2d2d2' },     // Light gray
-  'b2b2b2': { name: 'Base Grade', color: '#b2b2b2' },     // Gray
-  'ffffff': { name: 'High Grade', color: '#ffffff' },     // White
-  'a0a0a0': { name: 'Remarkable', color: '#a0a0a0' },     // Medium gray
-  '9da1a9': { name: 'Consumer Grade', color: '#9da1a9' }, // Slate gray
-  '4b69ff': { name: 'Mil-Spec Grade', color: '#4b69ff' }, // Blue
-  '5e98d9': { name: 'Industrial Grade', color: '#5e98d9' }, // Light blue
+  'cf6a32': { name: 'Extraordinary', color: '#cf6a32' },
+  'd2d2d2': { name: 'Base Grade', color: '#d2d2d2' },
 };
 
-// Weapon name display
-const WEAPON_NAMES: Record<string, string> = {
-  'ak-47': 'AK-47',
-  'm4a4': 'M4A4',
-  'm4a1-s': 'M4A1-S',
-  'awp': 'AWP',
-  'desert eagle': 'Desert Eagle',
-  'glock-18': 'Glock-18',
-  'usp-s': 'USP-S',
-  'p2000': 'P2000',
-  'p250': 'P250',
-  'dual berettas': 'Dual Berettas',
-  'ssg 08': 'SSG 08',
-  'sawed-off': 'Sawed-Off',
-  'g3sg1': 'G3SG1',
-  'scar-20': 'SCAR-20',
-  'mac-10': 'MAC-10',
-  'pp-bizon': 'PP-Bizon',
-  'aug': 'AUG',
-  'r8 revolver': 'R8 Revolver',
-  'case': 'Case',
-  'sealed graffiti': 'Sealed Graffiti',
-};
-
-const SORT_OPTIONS = [
-  { value: 'newest', label: 'Newest First' },
-  { value: 'name_asc', label: 'Name (A-Z)' },
-  { value: 'name_desc', label: 'Name (Z-A)' },
-  { value: 'price_high', label: 'Price (High to Low)' },
-  { value: 'price_low', label: 'Price (Low to High)' },
+// Float wear names
+const FLOAT_RANGES = [
+  { name: 'Factory New', min: 0.00, max: 0.07, color: '#4ade80' },
+  { name: 'Minimal Wear', min: 0.07, max: 0.15, color: '#22c55e' },
+  { name: 'Field-Tested', min: 0.15, max: 0.38, color: '#eab308' },
+  { name: 'Well-Worn', min: 0.38, max: 0.45, color: '#f97316' },
+  { name: 'Battle-Scarred', min: 0.45, max: 1.00, color: '#ef4444' },
 ];
 
 export default function InventoryFilters({ 
@@ -99,274 +57,370 @@ export default function InventoryFilters({
   onChange, 
   availableTypes = [], 
   availableRarities = [],
-  maxPrice = 1000
+  maxPrice = 1000 
 }: InventoryFiltersProps) {
-  const [typesOpen, setTypesOpen] = React.useState(false);
-  const [raritiesOpen, setRaritiesOpen] = React.useState(false);
-  const [sortOpen, setSortOpen] = React.useState(false);
+  const [showTypes, setShowTypes] = useState(false);
+  const [showRarities, setShowRarities] = useState(false);
+  const [showSort, setShowSort] = useState(false);
 
-  // Build type options
-  const typeOptions = availableTypes.map(type => ({
-    value: type,
-    label: WEAPON_NAMES[type] || type.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-    color: TYPE_COLORS[type] || '#94a3b8'
-  })).sort((a, b) => a.label.localeCompare(b.label));
+  const sortOptions = [
+    { value: 'newest', label: 'Newest First' },
+    { value: 'name_asc', label: 'Name (A-Z)' },
+    { value: 'name_desc', label: 'Name (Z-A)' },
+    { value: 'price_high', label: 'Price (High to Low)' },
+    { value: 'price_low', label: 'Price (Low to High)' },
+  ];
 
-  // Build rarity options from color codes
-  const rarityOptions = availableRarities.map(colorCode => {
-    const rarityInfo = RARITY_COLORS[colorCode];
-    
-    if (rarityInfo) {
-      return {
-        value: colorCode,
-        label: rarityInfo.name,
-        color: rarityInfo.color
-      };
+  // Get float wear name based on value
+  const getFloatWearName = (float: number) => {
+    for (const range of FLOAT_RANGES) {
+      if (float >= range.min && float < range.max) {
+        return range.name;
+      }
     }
-    
-    // Fallback for unknown colors - try to guess rarity based on color
-    const hex = `#${colorCode}`;
-    let guessedName = 'Unknown Grade';
-    
-    // Guess based on common CS:GO color patterns
-    const r = parseInt(colorCode.slice(0, 2), 16);
-    const g = parseInt(colorCode.slice(2, 4), 16);
-    const b = parseInt(colorCode.slice(4, 6), 16);
-    
-    if (r > 200 && g > 200 && b > 200) guessedName = 'Common Grade';
-    else if (b > r && b > g && b > 150) guessedName = 'Industrial Grade';
-    else if (r > 200 && g < 100 && b < 100) guessedName = 'Covert';
-    else if (r > 150 && g < 100 && b > 150) guessedName = 'Restricted';
-    else if (r > 150 && b > 200) guessedName = 'Classified';
-    else if (r > 200 && g > 150) guessedName = 'Extraordinary';
-    
-    return {
-      value: colorCode,
-      label: guessedName,
-      color: hex
-    };
-  }).sort((a, b) => a.label.localeCompare(b.label));
-
-  const toggleType = (value: string) => {
-    const newTypes = filters.types.includes(value)
-      ? filters.types.filter(t => t !== value)
-      : [...filters.types, value];
-    onChange({ types: newTypes });
+    return 'Battle-Scarred';
   };
 
-  const toggleRarity = (value: string) => {
-    const newRarities = filters.rarities.includes(value)
-      ? filters.rarities.filter(r => r !== value)
-      : [...filters.rarities, value];
-    onChange({ rarities: newRarities });
-  };
+  // Price quick filters
+  const priceQuickFilters = [
+    { label: '<$10', value: [0, 10] },
+    { label: '$10 - $50', value: [10, 50] },
+    { label: '$50 - $250', value: [50, 250] },
+    { label: '>$250', value: [250, maxPrice] },
+  ];
 
   return (
-    <div className="space-y-4 mb-6">
+    <div className="bg-slate-900 rounded-xl border border-slate-800 p-6 mb-6">
       {/* Search Bar */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+      <div className="relative mb-6">
+        <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
         <input
           type="text"
           placeholder="Search items..."
           value={filters.search}
           onChange={(e) => onChange({ search: e.target.value })}
-          className="w-full pl-10 pr-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full pl-12 pr-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 transition"
         />
       </div>
 
-      {/* Filter Row */}
-      <div className="flex flex-wrap gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Type Filter */}
         <div className="relative">
+          <label className="block text-sm font-medium text-slate-300 mb-2">Type</label>
           <button
-            onClick={() => setTypesOpen(!typesOpen)}
-            className="px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white hover:bg-slate-700 transition flex items-center gap-2 min-w-[140px] justify-between"
+            onClick={() => setShowTypes(!showTypes)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white hover:border-slate-600 transition"
           >
-            <span className="text-sm font-medium">
-              {filters.types.length === 0 ? 'Type' : `Type (${filters.types.length})`}
+            <span className="text-sm">
+              {filters.types.length > 0 
+                ? `${filters.types.length} selected` 
+                : 'All Types'}
             </span>
-            <ChevronDown className={`w-4 h-4 transition-transform ${typesOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`w-4 h-4 transition-transform ${showTypes ? 'rotate-180' : ''}`} />
           </button>
 
-          {typesOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setTypesOpen(false)} />
-              <div className="absolute top-full mt-2 left-0 w-64 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-20 max-h-96 overflow-y-auto">
-                <div className="sticky top-0 bg-slate-800 border-b border-slate-700 p-3 flex justify-between items-center">
-                  <span className="text-sm font-semibold text-white">Weapon Type</span>
-                  {filters.types.length > 0 && (
-                    <button
-                      onClick={() => { onChange({ types: [] }); setTypesOpen(false); }}
-                      className="text-xs text-blue-400 hover:text-blue-300"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
-                <div className="p-2">
-                  {typeOptions.length > 0 ? typeOptions.map((type) => (
-                    <label
-                      key={type.value}
-                      className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-700 rounded-md cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={filters.types.includes(type.value)}
-                        onChange={() => toggleType(type.value)}
-                        className="w-4 h-4 rounded border-slate-600 text-blue-600"
-                      />
-                      <div className="flex items-center gap-2 flex-1">
-                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: type.color }} />
-                        <span className="text-sm" style={{ color: type.color }}>{type.label}</span>
-                      </div>
-                    </label>
-                  )) : (
-                    <div className="px-3 py-4 text-sm text-slate-400 text-center">Loading...</div>
-                  )}
-                </div>
-              </div>
-            </>
+          {showTypes && (
+            <div className="absolute z-10 w-full mt-2 bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-h-64 overflow-y-auto">
+              {availableTypes.map((type) => (
+                <label
+                  key={type}
+                  className="flex items-center px-4 py-2 hover:bg-slate-700 cursor-pointer transition"
+                >
+                  <input
+                    type="checkbox"
+                    checked={filters.types.includes(type)}
+                    onChange={(e) => {
+                      const newTypes = e.target.checked
+                        ? [...filters.types, type]
+                        : filters.types.filter(t => t !== type);
+                      onChange({ types: newTypes });
+                    }}
+                    className="mr-3"
+                  />
+                  <span 
+                    className="text-sm font-medium"
+                    style={{ color: TYPE_COLORS[type] || '#fff' }}
+                  >
+                    {type.toUpperCase()}
+                  </span>
+                </label>
+              ))}
+            </div>
           )}
         </div>
 
         {/* Rarity Filter */}
         <div className="relative">
+          <label className="block text-sm font-medium text-slate-300 mb-2">Rarity</label>
           <button
-            onClick={() => setRaritiesOpen(!raritiesOpen)}
-            className="px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white hover:bg-slate-700 transition flex items-center gap-2 min-w-[140px] justify-between"
+            onClick={() => setShowRarities(!showRarities)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white hover:border-slate-600 transition"
           >
-            <span className="text-sm font-medium">
-              {filters.rarities.length === 0 ? 'Rarity' : `Rarity (${filters.rarities.length})`}
+            <span className="text-sm">
+              {filters.rarities.length > 0 
+                ? `${filters.rarities.length} selected` 
+                : 'All Rarities'}
             </span>
-            <ChevronDown className={`w-4 h-4 transition-transform ${raritiesOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`w-4 h-4 transition-transform ${showRarities ? 'rotate-180' : ''}`} />
           </button>
 
-          {raritiesOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setRaritiesOpen(false)} />
-              <div className="absolute top-full mt-2 left-0 w-64 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-20 max-h-96 overflow-y-auto">
-                <div className="sticky top-0 bg-slate-800 border-b border-slate-700 p-3 flex justify-between items-center">
-                  <span className="text-sm font-semibold text-white">Rarity Grade</span>
-                  {filters.rarities.length > 0 && (
-                    <button
-                      onClick={() => { onChange({ rarities: [] }); setRaritiesOpen(false); }}
-                      className="text-xs text-blue-400 hover:text-blue-300"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
-                <div className="p-2">
-                  {rarityOptions.length > 0 ? rarityOptions.map((rarity) => (
-                    <label
-                      key={rarity.value}
-                      className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-700 rounded-md cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={filters.rarities.includes(rarity.value)}
-                        onChange={() => toggleRarity(rarity.value)}
-                        className="w-4 h-4 rounded border-slate-600 text-blue-600"
-                      />
-                      <div className="flex items-center gap-2 flex-1">
-                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: rarity.color }} />
-                        <span className="text-sm" style={{ color: rarity.color }}>{rarity.label}</span>
-                      </div>
-                    </label>
-                  )) : (
-                    <div className="px-3 py-4 text-sm text-slate-400 text-center">Loading...</div>
-                  )}
-                </div>
-              </div>
-            </>
+          {showRarities && (
+            <div className="absolute z-10 w-full mt-2 bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-h-64 overflow-y-auto">
+              {availableRarities.map((rarity) => {
+                const rarityInfo = RARITY_COLORS[rarity] || { name: rarity, color: '#fff' };
+                return (
+                  <label
+                    key={rarity}
+                    className="flex items-center px-4 py-2 hover:bg-slate-700 cursor-pointer transition"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={filters.rarities.includes(rarity)}
+                      onChange={(e) => {
+                        const newRarities = e.target.checked
+                          ? [...filters.rarities, rarity]
+                          : filters.rarities.filter(r => r !== rarity);
+                        onChange({ rarities: newRarities });
+                      }}
+                      className="mr-3"
+                    />
+                    <div 
+                      className="w-3 h-3 rounded-full mr-2"
+                      style={{ backgroundColor: rarityInfo.color }}
+                    />
+                    <span className="text-sm">{rarityInfo.name}</span>
+                  </label>
+                );
+              })}
+            </div>
           )}
         </div>
 
-        {/* Sort Dropdown */}
-        <div className="relative ml-auto">
+        {/* Sort */}
+        <div className="relative">
+          <label className="block text-sm font-medium text-slate-300 mb-2">Sort By</label>
           <button
-            onClick={() => setSortOpen(!sortOpen)}
-            className="px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white hover:bg-slate-700 transition flex items-center gap-2 min-w-[160px] justify-between"
+            onClick={() => setShowSort(!showSort)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white hover:border-slate-600 transition"
           >
-            <span className="text-sm font-medium">
-              {SORT_OPTIONS.find(o => o.value === filters.sortBy)?.label || 'Sort By'}
+            <span className="text-sm">
+              {sortOptions.find(opt => opt.value === filters.sortBy)?.label || 'Newest First'}
             </span>
-            <ChevronDown className={`w-4 h-4 transition-transform ${sortOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`w-4 h-4 transition-transform ${showSort ? 'rotate-180' : ''}`} />
           </button>
 
-          {sortOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setSortOpen(false)} />
-              <div className="absolute top-full mt-2 right-0 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-20">
-                <div className="p-2">
-                  {SORT_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => {
-                        onChange({ sortBy: option.value });
-                        setSortOpen(false);
-                      }}
-                      className={`w-full text-left px-3 py-2 rounded-md text-sm transition ${
-                        filters.sortBy === option.value
-                          ? 'bg-blue-600 text-white'
-                          : 'text-slate-300 hover:bg-slate-700'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </>
+          {showSort && (
+            <div className="absolute z-10 w-full mt-2 bg-slate-800 border border-slate-700 rounded-lg shadow-xl">
+              {sortOptions.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => {
+                    onChange({ sortBy: option.value });
+                    setShowSort(false);
+                  }}
+                  className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-700 transition ${
+                    filters.sortBy === option.value ? 'bg-slate-700 text-blue-400' : 'text-white'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           )}
         </div>
       </div>
 
       {/* Price Range Slider */}
-      <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
+      <div className="mt-6">
         <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2 text-slate-300">
-            <DollarSign className="w-4 h-4" />
-            <span className="text-sm font-semibold">Price Range</span>
-          </div>
-          <span className="text-sm text-slate-400">
-            ${filters.priceRange[0]} - ${filters.priceRange[1] >= maxPrice ? `${maxPrice}+` : filters.priceRange[1]}
-          </span>
+          <label className="text-sm font-medium text-slate-300">Price</label>
+          <button
+            onClick={() => onChange({ priceRange: [0, maxPrice] })}
+            className="text-xs text-slate-400 hover:text-white transition"
+          >
+            Reset
+          </button>
         </div>
-        
-        <div className="space-y-3">
-          {/* Min Price Slider */}
-          <div>
-            <input
-              type="range"
-              min="0"
-              max={maxPrice}
-              step="1"
-              value={filters.priceRange[0]}
-              onChange={(e) => {
-                const min = Number(e.target.value);
-                onChange({ priceRange: [min, Math.max(min, filters.priceRange[1])] });
+
+        {/* Dual Range Slider */}
+        <div className="relative px-1">
+          {/* Track */}
+          <div className="h-1 bg-slate-700 rounded-full relative">
+            {/* Active range highlight */}
+            <div 
+              className="absolute h-full bg-blue-500 rounded-full"
+              style={{
+                left: `${(filters.priceRange[0] / maxPrice) * 100}%`,
+                right: `${100 - (filters.priceRange[1] / maxPrice) * 100}%`
               }}
-              className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
             />
           </div>
-          
-          {/* Max Price Slider */}
-          <div>
-            <input
-              type="range"
-              min="0"
-              max={maxPrice}
-              step="1"
-              value={filters.priceRange[1]}
-              onChange={(e) => {
-                const max = Number(e.target.value);
-                onChange({ priceRange: [Math.min(max, filters.priceRange[0]), max] });
-              }}
-              className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-green-600"
-            />
+
+          {/* Min Slider */}
+          <input
+            type="range"
+            min="0"
+            max={maxPrice}
+            step="1"
+            value={filters.priceRange[0]}
+            onChange={(e) => {
+              const newMin = Math.min(Number(e.target.value), filters.priceRange[1] - 1);
+              onChange({ priceRange: [newMin, filters.priceRange[1]] });
+            }}
+            className="absolute top-0 left-0 w-full h-1 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-blue-500"
+          />
+
+          {/* Max Slider */}
+          <input
+            type="range"
+            min="0"
+            max={maxPrice}
+            step="1"
+            value={filters.priceRange[1]}
+            onChange={(e) => {
+              const newMax = Math.max(Number(e.target.value), filters.priceRange[0] + 1);
+              onChange({ priceRange: [filters.priceRange[0], newMax] });
+            }}
+            className="absolute top-0 left-0 w-full h-1 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-blue-500"
+          />
+        </div>
+
+        {/* Price Display */}
+        <div className="flex items-center justify-between mt-4 gap-4">
+          <div className="flex-1">
+            <div className="text-xs text-slate-400 mb-1">From</div>
+            <div className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg">
+              <span className="text-white font-medium">$ {filters.priceRange[0]}</span>
+            </div>
           </div>
+
+          <div className="flex-1">
+            <div className="text-xs text-slate-400 mb-1">To</div>
+            <div className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg">
+              <span className="text-white font-medium">
+                $ {filters.priceRange[1] === maxPrice ? maxPrice.toLocaleString() : filters.priceRange[1]}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Price Filters */}
+        <div className="flex gap-2 mt-3 flex-wrap">
+          {priceQuickFilters.map((filter, index) => (
+            <button
+              key={index}
+              onClick={() => onChange({ priceRange: filter.value as [number, number] })}
+              className="px-3 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 rounded transition"
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Float Range Slider */}
+      <div className="mt-6">
+        <div className="flex items-center justify-between mb-3">
+          <label className="text-sm font-medium text-slate-300">Float Value</label>
+          <button
+            onClick={() => onChange({ floatRange: [0, 1] })}
+            className="text-xs text-slate-400 hover:text-white transition"
+          >
+            Reset
+          </button>
+        </div>
+
+        {/* Dual Range Slider for Float */}
+        <div className="relative px-1">
+          {/* Track with gradient (Factory New → Battle-Scarred) */}
+          <div className="h-1 bg-gradient-to-r from-green-500 via-yellow-500 to-red-500 rounded-full relative opacity-30" />
+          <div className="absolute inset-0 h-1 bg-slate-700 rounded-full" style={{ opacity: 0.5 }} />
+
+          {/* Active range highlight */}
+          <div 
+            className="absolute h-1 bg-blue-500 rounded-full"
+            style={{
+              left: `${(filters.floatRange[0] / 1) * 100}%`,
+              right: `${100 - (filters.floatRange[1] / 1) * 100}%`,
+              top: 0
+            }}
+          />
+
+          {/* Min Slider */}
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={filters.floatRange[0]}
+            onChange={(e) => {
+              const newMin = Math.min(Number(e.target.value), filters.floatRange[1] - 0.01);
+              onChange({ floatRange: [newMin, filters.floatRange[1]] });
+            }}
+            className="absolute top-0 left-0 w-full h-1 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-green-500 [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-green-500"
+          />
+
+          {/* Max Slider */}
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={filters.floatRange[1]}
+            onChange={(e) => {
+              const newMax = Math.max(Number(e.target.value), filters.floatRange[0] + 0.01);
+              onChange({ floatRange: [filters.floatRange[0], newMax] });
+            }}
+            className="absolute top-0 left-0 w-full h-1 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-red-500 [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-red-500"
+          />
+        </div>
+
+        {/* Float Display */}
+        <div className="flex items-center justify-between mt-4 gap-4">
+          <div className="flex-1">
+            <div className="text-xs text-slate-400 mb-1">From</div>
+            <div className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg">
+              <span className="text-white font-mono font-medium">
+                {filters.floatRange[0].toFixed(2)}
+              </span>
+              <div className="text-xs text-green-400 mt-0.5">
+                {getFloatWearName(filters.floatRange[0])}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-1">
+            <div className="text-xs text-slate-400 mb-1">To</div>
+            <div className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg">
+              <span className="text-white font-mono font-medium">
+                {filters.floatRange[1].toFixed(2)}
+              </span>
+              <div className="text-xs text-red-400 mt-0.5">
+                {getFloatWearName(filters.floatRange[1])}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Float Quick Filters */}
+        <div className="flex gap-2 mt-3 flex-wrap">
+          {FLOAT_RANGES.map((range, index) => (
+            <button
+              key={index}
+              onClick={() => onChange({ floatRange: [range.min, range.max] })}
+              className="px-3 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded transition flex items-center gap-2"
+              style={{ 
+                borderColor: range.color + '40',
+                color: range.color 
+              }}
+            >
+              <div 
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: range.color }}
+              />
+              {range.name}
+            </button>
+          ))}
         </div>
       </div>
     </div>
