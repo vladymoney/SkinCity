@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Search, ChevronDown } from 'lucide-react';
+import DualRangeSlider from './DualRangeSlider';
 
 interface InventoryFiltersProps {
   filters: {
@@ -243,31 +244,32 @@ export default function InventoryFilters({
         </div>
 
         {/* Dual Range Slider */}
-        <div className="relative px-1">
-          {/* Track */}
-          <div className="h-1 bg-slate-700 rounded-full relative">
-            {/* Active range highlight */}
-            <div 
-              className="absolute h-full bg-blue-500 rounded-full"
-              style={{
-                left: `${(filters.priceRange[0] / maxPrice) * 100}%`,
-                right: `${100 - (filters.priceRange[1] / maxPrice) * 100}%`
-              }}
-            />
-          </div>
+        <div className="relative mb-4">
+          {/* Track Background */}
+          <div className="absolute left-0 right-0 top-0 h-1 bg-slate-700 rounded-full" />
+
+          {/* Active range highlight */}
+          <div 
+            className="absolute h-1 bg-blue-500 rounded-full transition-all pointer-events-none"
+            style={{
+              left: `${(filters.priceRange[0] / maxPrice) * 100}%`,
+              right: `${100 - (filters.priceRange[1] / maxPrice) * 100}%`,
+              top: 0
+            }}
+          />
 
           {/* Min Slider */}
           <input
             type="range"
             min="0"
             max={maxPrice}
-            step="1"
+            step="0.01"
             value={filters.priceRange[0]}
             onChange={(e) => {
-              const newMin = Math.min(Number(e.target.value), filters.priceRange[1] - 1);
+              const newMin = Math.min(Number(e.target.value), filters.priceRange[1] - 0.01);
               onChange({ priceRange: [newMin, filters.priceRange[1]] });
             }}
-            className="absolute top-0 left-0 w-full h-1 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-blue-500"
+            className="absolute top-0 left-0 w-full h-1 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:z-20 [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-blue-500 [&::-moz-range-thumb]:border-0"
           />
 
           {/* Max Slider */}
@@ -275,13 +277,13 @@ export default function InventoryFilters({
             type="range"
             min="0"
             max={maxPrice}
-            step="1"
+            step="0.01"
             value={filters.priceRange[1]}
             onChange={(e) => {
-              const newMax = Math.max(Number(e.target.value), filters.priceRange[0] + 1);
+              const newMax = Math.max(Number(e.target.value), filters.priceRange[0] + 0.01);
               onChange({ priceRange: [filters.priceRange[0], newMax] });
             }}
-            className="absolute top-0 left-0 w-full h-1 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-blue-500"
+            className="absolute top-0 left-0 w-full h-1 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:z-30 [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-blue-500 [&::-moz-range-thumb]:border-0"
           />
         </div>
 
@@ -290,7 +292,7 @@ export default function InventoryFilters({
           <div className="flex-1">
             <div className="text-xs text-slate-400 mb-1">From</div>
             <div className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg">
-              <span className="text-white font-medium">$ {filters.priceRange[0]}</span>
+              <span className="text-white font-medium">$ {filters.priceRange[0].toFixed(2)}</span>
             </div>
           </div>
 
@@ -298,7 +300,7 @@ export default function InventoryFilters({
             <div className="text-xs text-slate-400 mb-1">To</div>
             <div className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg">
               <span className="text-white font-medium">
-                $ {filters.priceRange[1] === maxPrice ? maxPrice.toLocaleString() : filters.priceRange[1]}
+                $ {filters.priceRange[1].toFixed(2)}
               </span>
             </div>
           </div>
@@ -331,14 +333,13 @@ export default function InventoryFilters({
         </div>
 
         {/* Dual Range Slider for Float */}
-        <div className="relative px-1">
-          {/* Track with gradient (Factory New → Battle-Scarred) */}
-          <div className="h-1 bg-gradient-to-r from-green-500 via-yellow-500 to-red-500 rounded-full relative opacity-30" />
-          <div className="absolute inset-0 h-1 bg-slate-700 rounded-full" style={{ opacity: 0.5 }} />
+        <div className="relative mb-4">
+          {/* Track Background */}
+          <div className="absolute left-0 right-0 top-0 h-1 bg-slate-700 rounded-full" />
 
           {/* Active range highlight */}
           <div 
-            className="absolute h-1 bg-blue-500 rounded-full"
+            className="absolute h-1 bg-gradient-to-r from-green-500 to-red-500 rounded-full transition-all pointer-events-none"
             style={{
               left: `${(filters.floatRange[0] / 1) * 100}%`,
               right: `${100 - (filters.floatRange[1] / 1) * 100}%`,
@@ -357,7 +358,7 @@ export default function InventoryFilters({
               const newMin = Math.min(Number(e.target.value), filters.floatRange[1] - 0.01);
               onChange({ floatRange: [newMin, filters.floatRange[1]] });
             }}
-            className="absolute top-0 left-0 w-full h-1 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-green-500 [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-green-500"
+            className="absolute top-0 left-0 w-full h-1 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-green-500 [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:z-20 [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-green-500 [&::-moz-range-thumb]:border-0"
           />
 
           {/* Max Slider */}
@@ -371,7 +372,7 @@ export default function InventoryFilters({
               const newMax = Math.max(Number(e.target.value), filters.floatRange[0] + 0.01);
               onChange({ floatRange: [filters.floatRange[0], newMax] });
             }}
-            className="absolute top-0 left-0 w-full h-1 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-red-500 [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-red-500"
+            className="absolute top-0 left-0 w-full h-1 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-red-500 [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:z-30 [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-red-500 [&::-moz-range-thumb]:border-0"
           />
         </div>
 

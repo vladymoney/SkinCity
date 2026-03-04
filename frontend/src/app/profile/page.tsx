@@ -48,7 +48,7 @@ export default function ProfilePage() {
     types: [],
     rarities: [],
     sortBy: 'newest',
-    priceRange: [0, 1000],
+    priceRange: [0, 5], // Will be updated after inventory loads
     floatRange: [0, 1], // 0.00 to 1.00
   });
 
@@ -142,12 +142,28 @@ export default function ProfilePage() {
     return Array.from(rarities).sort();
   }, [inventory.length]);
 
-  // Calculate max price for slider
+  // Calculate max price for slider - use actual max from inventory
   const maxPrice = useMemo(() => {
-    if (!inventory || inventory.length === 0) return 1000;
+    if (!inventory || inventory.length === 0) return 100;
+    
     const prices = inventory.map(item => item.pricereal || item.pricelatest || 0);
-    return Math.ceil(Math.max(...prices, 100));
+    const maxPriceRaw = Math.max(...prices);
+    
+    // Round up to next dollar, minimum $5
+    const roundedMax = Math.ceil(maxPriceRaw);
+    return Math.max(roundedMax, 5);
   }, [inventory.length]);
+
+  // Update price range when inventory first loads (only once)
+  useEffect(() => {
+    if (inventory.length > 0 && maxPrice > 5 && filters.priceRange[1] <= 5) {
+      // Update to actual max price
+      setFilters(prev => ({
+        ...prev,
+        priceRange: [0, maxPrice]
+      }));
+    }
+  }, [inventory.length, maxPrice]); // Don't include filters in dependencies!
 
   const filteredInventory = useMemo(() => {
     let items = [...inventory];
