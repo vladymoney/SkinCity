@@ -4,8 +4,9 @@
 
 import { Inter } from "next/font/google";
 import "./globals.css";
-import Header from "./components/Header";         // Use '@' alias for clean imports
-import InventoryModal from "./components/InventoryModal"; // Use '@' alias for clean imports
+import Header from "./components/Header";
+import InventoryModal from "./components/InventoryModal";
+import Footer from "./components/Footer";
 import { useState, useEffect } from "react";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -56,10 +57,10 @@ export default function RootLayout({
         */}
         {isModalOpen && <InventoryModal onClose={() => setIsModalOpen(false)} />}
         
-        {/* All other pages will be rendered inside this main tag */}
-        <main style={{ padding: '2rem' }}>
+        <main style={{ padding: '0' }}>
           {children}
         </main>
+        <Footer />
       </body>
     </html>
   );

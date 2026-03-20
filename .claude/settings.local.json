@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx prisma migrate dev --name add_marketplace_tables)",
+      "Bash(npx tsc --noEmit)"
+    ]
+  }
+}

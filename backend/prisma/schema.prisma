@@ -19,24 +19,63 @@ model User {
   balance     Int      @default(0)
   created_at  DateTime @default(now())
 
-  // --- THIS IS THE NEW RELATION ---
-  // This tells Prisma that a User can have many ListedItems.
-  listedItems ListedItem[]
+  listedItems    ListedItem[]
+  sellerListings Listing[]           @relation("SellerListings")
+  buyerListings  Listing[]           @relation("BuyerListings")
+  buyerEscrow    EscrowTransaction[] @relation("BuyerEscrow")
+  sellerEscrow   EscrowTransaction[] @relation("SellerEscrow")
 }
 
-// --- THIS IS THE NEW MODEL ---
 model ListedItem {
-  id          String   @id @default(cuid())
-  assetid     String   @unique // The unique ID of the item from Steam
-  
-  // These fields are duplicated for easy access when displaying listings
-  name        String
-  image_url   String
+  id           String   @id @default(cuid())
+  assetid      String   @unique
+  name         String
+  image_url    String
   rarity_color String
+  created_at   DateTime @default(now())
+  owner        User     @relation(fields: [ownerId], references: [id])
+  ownerId      String
+}
 
-  created_at  DateTime @default(now())
+model Listing {
+  id               String    @id @default(cuid())
+  assetid          String    @unique
+  seller_id        String
+  buyer_id         String?
+  name             String
+  image_url        String
+  rarity_color     String
+  float_value      Decimal?  @db.Decimal(18, 14)
+  stickers         Json?
+  price            Decimal   @db.Decimal(10, 2)
+  status           String    @default("listed")
+  // status: 'listed', 'pending_purchase', 'awaiting_seller_trade', 'in_escrow', 'sold', 'cancelled'
+  seller_trade_url String?   @db.VarChar(500)
+  buyer_trade_url  String?   @db.VarChar(500)
+  listed_at        DateTime  @default(now())
+  purchased_at     DateTime?
+  completed_at     DateTime?
+  views            Int       @default(0)
 
-  // --- This sets up the relationship to the User model ---
-  owner       User     @relation(fields: [ownerId], references: [id])
-  ownerId     String
+  seller User              @relation("SellerListings", fields: [seller_id], references: [id])
+  buyer  User?             @relation("BuyerListings", fields: [buyer_id], references: [id])
+  escrow EscrowTransaction?
+}
+
+model EscrowTransaction {
+  id              String    @id @default(cuid())
+  listing_id      String    @unique
+  buyer_id        String
+  seller_id       String
+  item_price      Decimal   @db.Decimal(10, 2)
+  commission      Decimal   @db.Decimal(10, 2)
+  seller_receives Decimal   @db.Decimal(10, 2)
+  status          String    @default("held")
+  // status: 'held', 'released', 'refunded'
+  release_after   DateTime
+  released_at     DateTime?
+
+  listing Listing @relation(fields: [listing_id], references: [id])
+  buyer   User    @relation("BuyerEscrow", fields: [buyer_id], references: [id])
+  seller  User    @relation("SellerEscrow", fields: [seller_id], references: [id])
 }

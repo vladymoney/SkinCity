@@ -9,10 +9,13 @@ export enum Rarity {
   Extraordinary = 'Extraordinary',
 }
 
-export type SortOption = 'name_asc' | 'name_desc' | 'newest';
+export type SortOption = 'name_asc' | 'name_desc' | 'newest' | 'price_high' | 'price_low';
 
 export interface InventoryFilters {
   search: string;
+  types: string[];
   rarities: string[];
   sortBy: SortOption;
+  priceRange: [number, number];
+  floatRange: [number, number];
 }

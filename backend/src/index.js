@@ -189,53 +189,43 @@ app.use('/api/inventory', inventoryRouter);
 // --- STEAM PROXY ROUTES ---
 const steamRouter = express.Router();
 
-// Get 3D Screenshot (Streamed) with Custom Branding
+// Get 3D Screenshot (Streamed)
 steamRouter.get('/float/screenshot', async (req, res) => {
     const { url } = req.query;
     if (!url) return res.status(400).json({ error: "Missing url parameter" });
-    
+
     try {
-        // Build API URL with custom parameters
         const params = new URLSearchParams({
             key: STEAMWEBAPI_KEY,
             url: url,
-            color: 'black',                          // Black theme (professional)
-            logo_url: 'https://webifly.bg/wp-content/uploads/2026/02/remove_background_project_1.png',
-            logo_offset_start: 'top left',           // Position TOP LEFT
-            logo_offset_x: '30',                     // 30px from left edge
-            logo_offset_y: '30',                     // 30px from top edge
-            logo_opacity: '0.95',                    // 95% opacity (very visible)
-            logo_width: '180',                       // 180px width (good size)
-            format: 'screen'                         // Screen format
+            color: 'black',
+            format: 'screen'
         });
-        
+
         const apiUrl = `https://www.steamwebapi.com/steam/api/float/screenshot?${params.toString()}`;
-        
+
         const response = await axios({
             url: apiUrl,
             method: 'GET',
             responseType: 'stream',
-            timeout: 15000,
-            validateStatus: (status) => status === 200
+            timeout: 20000,
+            validateStatus: (status) => status < 500,
         });
 
-        res.setHeader('Content-Type', response.headers['content-type'] || 'image/png');
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate'); // Disable caching temporarily
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
-        
-        response.data.pipe(res);
-        
-    } catch (err) {
-        console.error("Screenshot API Error:", err.response?.status || err.message);
-        
-        if (err.response?.status === 429) {
-            res.status(429).json({ error: "Rate limit exceeded" });
-        } else if (err.response?.status === 404) {
-            res.status(404).json({ error: "Screenshot not available" });
-        } else {
-            res.status(500).json({ error: "Screenshot generation failed" });
+        if (response.status !== 200) {
+            console.error(`Screenshot API returned ${response.status}`);
+            if (response.status === 429) return res.status(429).json({ error: "Rate limit exceeded" });
+            return res.status(404).json({ error: "Screenshot not available" });
         }
+
+        res.setHeader('Content-Type', response.headers['content-type'] || 'image/png');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        response.data.pipe(res);
+
+    } catch (err) {
+        console.error("Screenshot API Error:", err.response?.status, err.message);
+        if (err.code === 'ECONNABORTED') return res.status(504).json({ error: "Screenshot timeout" });
+        res.status(500).json({ error: "Screenshot generation failed" });
     }
 });
 
@@ -264,6 +254,190 @@ steamRouter.get('/history', async (req, res) => {
 });
 
 app.use('/api/steam', steamRouter);
+
+// --- MARKETPLACE ROUTES ---
+const marketRouter = express.Router();
+
+// Browse all active listings (public)
+marketRouter.get('/', async (req, res) => {
+    const { sort = 'listed_at_desc', min_price, max_price, search, page = 1 } = req.query;
+    const PAGE_SIZE = 24;
+    const skip = (parseInt(page) - 1) * PAGE_SIZE;
+
+    const where = { status: 'listed' };
+    if (min_price || max_price) {
+        where.price = {};
+        if (min_price) where.price.gte = parseFloat(min_price);
+        if (max_price) where.price.lte = parseFloat(max_price);
+    }
+    if (search) where.name = { contains: search, mode: 'insensitive' };
+
+    const orderByMap = {
+        price_asc:      { price: 'asc' },
+        price_desc:     { price: 'desc' },
+        float_asc:      { float_value: 'asc' },
+        float_desc:     { float_value: 'desc' },
+        listed_at_desc: { listed_at: 'desc' },
+        views_desc:     { views: 'desc' },
+    };
+    const orderBy = orderByMap[sort] || { listed_at: 'desc' };
+
+    try {
+        const [listings, total] = await Promise.all([
+            prisma.listing.findMany({
+                where, orderBy, skip, take: PAGE_SIZE,
+                include: { seller: { select: { username: true, avatar_url: true, steam_id: true } } },
+            }),
+            prisma.listing.count({ where }),
+        ]);
+        res.json({ listings, total, page: parseInt(page), pages: Math.ceil(total / PAGE_SIZE) });
+    } catch (err) {
+        console.error('Market browse error:', err);
+        res.status(500).json({ message: 'Error fetching listings' });
+    }
+});
+
+// Create a listing (seller posts item for sale)
+marketRouter.post('/', isAuthenticated, async (req, res) => {
+    const { assetid, name, image_url, rarity_color, float_value, stickers, price } = req.body;
+
+    if (!assetid || !name || !image_url || !price) {
+        return res.status(400).json({ message: 'Missing required fields' });
+    }
+    const numPrice = parseFloat(price);
+    if (numPrice < 0.50 || numPrice > 10000) {
+        return res.status(400).json({ message: 'Price must be between $0.50 and $10,000' });
+    }
+
+    try {
+        const existing = await prisma.listing.findUnique({ where: { assetid } });
+        if (existing && existing.status !== 'cancelled') {
+            return res.status(409).json({ message: 'Item already listed' });
+        }
+
+        const listing = await prisma.listing.upsert({
+            where: { assetid },
+            update: {
+                seller_id: req.user.id, buyer_id: null, name, image_url, rarity_color,
+                float_value: float_value ?? null, stickers: stickers ?? null,
+                price: numPrice, status: 'listed',
+                seller_trade_url: req.user.trade_link ?? null,
+                listed_at: new Date(), purchased_at: null, completed_at: null, views: 0,
+            },
+            create: {
+                assetid, seller_id: req.user.id, name, image_url, rarity_color,
+                float_value: float_value ?? null, stickers: stickers ?? null,
+                price: numPrice, seller_trade_url: req.user.trade_link ?? null,
+            },
+        });
+        res.status(201).json(listing);
+    } catch (err) {
+        console.error('Create listing error:', err);
+        res.status(500).json({ message: 'Error creating listing' });
+    }
+});
+
+// Get single listing by id (increments views)
+marketRouter.get('/:id', async (req, res) => {
+    try {
+        const listing = await prisma.listing.findUnique({
+            where: { id: req.params.id },
+            include: { seller: { select: { username: true, avatar_url: true, steam_id: true } } },
+        });
+        if (!listing) return res.status(404).json({ message: 'Not found' });
+        // Increment view count async (fire-and-forget)
+        prisma.listing.update({ where: { id: listing.id }, data: { views: { increment: 1 } } }).catch(() => {});
+        res.json(listing);
+    } catch (err) {
+        res.status(500).json({ message: 'Error fetching listing' });
+    }
+});
+
+// Cancel a listing (seller only)
+marketRouter.delete('/:id', isAuthenticated, async (req, res) => {
+    try {
+        const listing = await prisma.listing.findUnique({ where: { id: req.params.id } });
+        if (!listing) return res.status(404).json({ message: 'Not found' });
+        if (listing.seller_id !== req.user.id) return res.status(403).json({ message: 'Forbidden' });
+        if (listing.status !== 'listed') return res.status(400).json({ message: 'Can only cancel active listings' });
+
+        await prisma.listing.update({ where: { id: req.params.id }, data: { status: 'cancelled' } });
+        res.status(204).send();
+    } catch (err) {
+        res.status(500).json({ message: 'Error cancelling listing' });
+    }
+});
+
+// Purchase flow: buyer initiates purchase
+marketRouter.post('/:id/purchase', isAuthenticated, async (req, res) => {
+    const { buyer_trade_url } = req.body;
+    if (!buyer_trade_url) return res.status(400).json({ message: 'Trade URL required' });
+
+    try {
+        const listing = await prisma.listing.findUnique({
+            where: { id: req.params.id },
+            include: { seller: true },
+        });
+        if (!listing) return res.status(404).json({ message: 'Not found' });
+        if (listing.status !== 'listed') return res.status(400).json({ message: 'Item is no longer available' });
+        if (listing.seller_id === req.user.id) return res.status(400).json({ message: 'Cannot buy your own listing' });
+
+        const commission = parseFloat((listing.price * 0.05).toFixed(2));
+        const seller_receives = parseFloat((listing.price - commission).toFixed(2));
+
+        const releaseAfter = new Date();
+        releaseAfter.setDate(releaseAfter.getDate() + 7);
+
+        const [updatedListing] = await prisma.$transaction([
+            prisma.listing.update({
+                where: { id: req.params.id },
+                data: {
+                    status: 'pending_purchase',
+                    buyer_id: req.user.id,
+                    buyer_trade_url,
+                    purchased_at: new Date(),
+                },
+            }),
+            prisma.escrowTransaction.create({
+                data: {
+                    listing_id: listing.id,
+                    buyer_id: req.user.id,
+                    seller_id: listing.seller_id,
+                    item_price: listing.price,
+                    commission,
+                    seller_receives,
+                    release_after: releaseAfter,
+                },
+            }),
+        ]);
+
+        res.json({
+            message: 'Purchase initiated',
+            listing: updatedListing,
+            seller_trade_url: listing.seller_trade_url,
+            instructions: 'Send the item to the buyer using the trade URL provided. Funds will be released after 7 days.',
+        });
+    } catch (err) {
+        console.error('Purchase error:', err);
+        res.status(500).json({ message: 'Error processing purchase' });
+    }
+});
+
+// Get seller's own listings
+marketRouter.get('/my/listings', isAuthenticated, async (req, res) => {
+    try {
+        const listings = await prisma.listing.findMany({
+            where: { seller_id: req.user.id },
+            orderBy: { listed_at: 'desc' },
+            include: { escrow: true },
+        });
+        res.json(listings);
+    } catch (err) {
+        res.status(500).json({ message: 'Error fetching listings' });
+    }
+});
+
+app.use('/api/market', marketRouter);
 
 // --- HEALTH CHECK ---
 app.get('/health', (req, res) => {
