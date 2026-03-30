@@ -52,6 +52,8 @@ model Listing {
   // status: 'listed', 'pending_purchase', 'awaiting_seller_trade', 'in_escrow', 'sold', 'cancelled'
   seller_trade_url String?   @db.VarChar(500)
   buyer_trade_url  String?   @db.VarChar(500)
+  seller_offer_id  String?   // Steam trade offer ID sent to seller
+  buyer_offer_id   String?   // Steam trade offer ID sent to buyer
   listed_at        DateTime  @default(now())
   purchased_at     DateTime?
   completed_at     DateTime?

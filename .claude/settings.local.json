@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(npx prisma migrate dev --name add_marketplace_tables)",
-      "Bash(npx tsc --noEmit)"
+      "Bash(npx tsc --noEmit)",
+      "Bash(npm install:*)",
+      "Bash(node -e \"require\\(''steam-user''\\); require\\(''steam-tradeoffer-manager''\\); require\\(''steam-totp''\\); require\\(''steam-community''\\); require\\(''steamid''\\); console.log\\(''all packages OK''\\)\")",
+      "Bash(npx prisma:*)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\vlady\\Desktop\\skincity\\backend\\src"
     ]
   }
 }

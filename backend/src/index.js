@@ -5,6 +5,8 @@ import cors from 'cors';
 import SteamStrategy from 'passport-steam';
 import { PrismaClient } from '@prisma/client';
 import axios from 'axios';
+import { login as botLogin } from './bot/steamBot.js';
+import { startEscrowService } from './bot/escrowService.js';
 
 const app = express();
 const prisma = new PrismaClient();
@@ -448,4 +450,6 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(`✅ Backend running on http://localhost:${PORT}`);
   console.log(`📡 Using SteamWebAPI for inventory`);
+  botLogin();
+  startEscrowService();
 });
